@@ -1,51 +1,70 @@
-name: 🛡️ CYNET Advanced AI Kali
+name: 🛡️ CYNET Cloud Kali Linux
+
 on:
   workflow_dispatch:
 
 jobs:
   launch-kali:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
+
     steps:
-      - name: 🚀 Setup Kali & AI Engine
+      - name: 📦 Setup Kali Linux Engine & Web Terminal (TTYD)
         run: |
-          # ۱. نصب ابزارهای پایه
-          sudo apt-get update && sudo apt-get install -y zstd curl wget
+          echo "=========================================================="
+          echo "  🛡️ INSTALLING KALI LINUX & HACKING SUITE..."
+          echo "=========================================================="
+          sudo apt-get update -y -q
           
-          # ۲. نصب و اجرای Ollama
-          curl -fsSL https://ollama.com/install.sh | sh
-          export OLLAMA_HOST=0.0.0.0
-          nohup ollama serve > /tmp/ollama.log 2>&1 &
-          sleep 10
-          
-          # ۳. دانلود مدل‌های هوشمند و پایدار (14B نقطه طلایی سیستم شماست )
-          echo "📥 Downloading Reasoning Engine (14B)..."
-          ollama pull deepseek-r1:14b
-          echo "📥 Downloading Coding Engine (7B)..."
-          ollama pull qwen2.5-coder:7b
-          
-          # ۴. اجرای کانتینر کالی
-          docker run -d --name cynet-kali --privileged --network host kalilinux/kali-rolling tail -f /dev/null
-          
-          # ۵. نصب ابزارهای هک داخل کالی در پس‌زمینه
-          docker exec cynet-kali apt-get update
-          docker exec cynet-kali apt-get install -y nmap metasploit-framework curl wget python3 git sudo -q
-          
-          # ۶. اجرای وب‌ترمینال (پورت ۷۶۸۱)
+          # نصب کلودفلرد
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared
+          sudo chmod +x /usr/local/bin/cloudflared
+
+          # نصب وب‌ترمینال قدرتمند ttyd
           sudo wget -q https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -O /usr/local/bin/ttyd
           sudo chmod +x /usr/local/bin/ttyd
-          ttyd -W -p 7681 docker exec -it cynet-kali /bin/bash > /dev/null 2>&1 &
-          
-          # ۷. ایجاد دو تونل مجزا (یکی برای ترمینال، یکی برای هوش مصنوعی )
-          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cf
-          sudo chmod +x /usr/local/bin/cf
-          
-          nohup cf tunnel --url http://localhost:7681 > /tmp/terminal_link.log 2>&1 &
-          nohup cf tunnel --url http://localhost:11434 > /tmp/ai_link.log 2>&1 &
-          
-          sleep 20
+
+          # اجرای کانتینر رسمی کالی لینوکس با دسترسی روت کامل
+          docker run -d \
+            --name cynet-kali \
+            --privileged \
+            --network host \
+            -v /root:/root \
+            kalilinux/kali-rolling \
+            tail -f /dev/null
+
+          # نصب ابزارهای اصلی کالی در پس‌زمینه
+          docker exec cynet-kali apt-get update -y
+          docker exec cynet-kali apt-get install -y -q nmap metasploit-framework sqlmap hydra curl wget python3 git sudo zsh tmux
+
+      - name: 🌐 Launch Interactive Web Terminal & Public Link
+        run: |
           echo "=========================================================="
-          echo "  🛡️ KALI TERMINAL: $(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' /tmp/terminal_link.log | head -n 1 )"
-          echo "  🧠 AI API (9Router): $(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' /tmp/ai_tunnel.log | head -n 1 )"
+          echo "  🎉 LAUNCHING INTERACTIVE KALI WEB TERMINAL..."
           echo "=========================================================="
           
-          tail -f /tmp/ollama.log
+          # اجرای وب ترمینال با فلگ -W برای فعال‌سازی کامل تایپ و کیبورد
+          ttyd -W -p 7681 -t fontSize=16 -t theme='{"background": "#0f172a", "foreground": "#38bdf8", "cursor": "#38bdf8"}' docker exec -it cynet-kali /bin/bash > /dev/null 2>&1 &
+          sleep 3
+
+          # ایجاد تانل کلودفلر
+          cloudflared tunnel --url http://localhost:7681 > tunnel.log 2>&1 &
+          
+          sleep 5
+          for i in {1..20}; do
+            URL=$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' tunnel.log | head -n 1)
+            if [ -n "$URL" ]; then
+              echo ""
+              echo "=========================================================="
+              echo "  🔥 YOUR INTERACTIVE KALI LINUX IS LIVE & READY!"
+              echo "  👉 CLICK TO OPEN IN BROWSER: $URL"
+              echo "  --------------------------------------------------------"
+              echo "  ⚡ Full Root Access | 1000 Mbps Internet | Keyboard Active"
+              echo "=========================================================="
+              echo ""
+              break
+            fi
+            sleep 2
+          done
+
+          tail -f tunnel.log
